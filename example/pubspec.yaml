@@ -1,0 +1,33 @@
+name: paginated_typeahead_example
+description: "Example for paginated_typeahead"
+publish_to: 'none'
+version: 0.0.1
+homepage:
+
+environment:
+  sdk: ^3.13.4
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^2.0.0
+  paginated_typeahead:
+    path: ../
+  dio: ^5.11.1
+  retrofit: ^4.10.0
+  json_annotation: ^4.12.0
+  pretty_dio_logger: ^1.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  build_runner: ^2.16.1
+  retrofit_generator: ^10.2.11
+  json_serializable: ^6.14.1
+
+flutter:
+  uses-material-design: true
