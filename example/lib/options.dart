@@ -76,6 +76,7 @@ class FieldSettings extends ChangeNotifier {
         debounce,
         hideOnSelect,
         hideOnUnfocus,
+        clearOnSelect,
       ];
 
   List<FieldOption> search(String pattern) {
@@ -141,5 +142,12 @@ class FieldSettings extends ChangeNotifier {
     title: 'Hide on Unfocus',
     value: true,
     icon: Icons.visibility_off,
+  );
+
+  final ToggleFieldOption clearOnSelect = ToggleFieldOption(
+    key: 'clearOnSelect',
+    title: 'Clear on Select',
+    value: true,
+    icon: Icons.cleaning_services,
   );
 }

@@ -64,6 +64,7 @@ class _ExampleTypeAheadState extends State<ExampleTypeAhead> {
             ? const Duration(milliseconds: 300)
             : Duration.zero,
         hideOnSelect: settings.hideOnSelect.value,
+        clearOnSelect: settings.clearOnSelect.value,
         hideOnUnfocus: settings.hideOnUnfocus.value,
         constrainWidth: settings.constrainWidth.value,
         direction: settings.direction.value,
@@ -71,9 +72,6 @@ class _ExampleTypeAheadState extends State<ExampleTypeAhead> {
             _repository.searchRepositories(query: query, page: page),
         onSelected: (repo) {
           setState(() => _selectedRepo = repo);
-          if (settings.hideOnSelect.value) {
-            widget.controller.clear();
-          }
         },
         separatorBuilder: settings.dividers.value
             ? (context, index) => const Divider(height: 1)

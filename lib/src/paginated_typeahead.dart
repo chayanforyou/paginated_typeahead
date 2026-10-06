@@ -7,32 +7,13 @@ import 'package:flutter/services.dart';
 
 import 'dart:ui';
 
+export 'types.dart';
+import 'types.dart';
+
 part 'overlay_builder.dart';
 
 /// Vertical gap between the text field and the dropdown overlay.
 const double _kDropdownGap = 8.0;
-
-typedef AutocompleteItemBuilder<T> = Widget Function(T item);
-typedef AutocompleteSuggestionsCallback<T> =
-    FutureOr<(List<T>? items, bool hasMore)> Function(String query, int page);
-
-typedef SuggestionErrorBuilder = Widget Function(
-  BuildContext context,
-  Object? error,
-);
-typedef LoadMoreErrorBuilder = Widget Function(
-  BuildContext context,
-  VoidCallback retry,
-);
-
-/// Builds the text field of the suggestions field.
-///
-/// Both the [controller] and [focusNode] must be passed to the text field.
-typedef SuggestionsFieldBuilder = Widget Function(
-  BuildContext context,
-  TextEditingController controller,
-  FocusNode focusNode,
-);
 
 /// A custom autocomplete search field with pagination support.
 ///
@@ -44,10 +25,10 @@ typedef SuggestionsFieldBuilder = Widget Function(
 /// insert/remove lifecycle handling.
 class PaginatedTypeAhead<T> extends StatefulWidget {
   /// Callback when an item is selected.
-  final ValueChanged<T>? onSelected;
+  final SuggestionSelectionCallback<T>? onSelected;
 
   /// Builds each result item in the dropdown list.
-  final AutocompleteItemBuilder<T> itemBuilder;
+  final SuggestionsItemBuilder<T> itemBuilder;
 
   /// Optional builder for a widget to separate items in the dropdown list.
   ///
@@ -61,7 +42,7 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
   final WidgetBuilder? emptyBuilder;
 
   /// Optional builder for displaying a widget when fetching suggestions fails.
-  final SuggestionErrorBuilder? errorBuilder;
+  final SuggestionsErrorBuilder? errorBuilder;
 
   /// Optional builder for the progress indicator shown at the bottom when loading the next page.
   final WidgetBuilder? loadMoreLoadingBuilder;
@@ -71,7 +52,7 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
 
   /// Callback to fetch suggestions for a search query.
   /// Returns a record of `(List<T>? items, bool hasMore)`.
-  final AutocompleteSuggestionsCallback<T> suggestionsCallback;
+  final PaginatedSuggestionsCallback<T> suggestionsCallback;
 
   /// The initial page number to load when fetching suggestions.
   final int initialPage;
@@ -104,10 +85,10 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
   /// Whether the dropdown overlay should be hidden when an item is selected.
   final bool hideOnSelect;
 
-  /// Whether to clear the search query and results when the suggestions overlay is closed.
+  /// Whether to clear the search text field when an item is selected.
   ///
   /// Defaults to false.
-  final bool clearOnClose;
+  final bool clearOnSelect;
 
   /// The minimum vertical space required below the search field to prevent flipping directions.
   final double autoFlipMinHeight;
@@ -155,6 +136,11 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
   /// Both the [controller] and [focusNode] must be passed to the text field.
   final SuggestionsFieldBuilder? builder;
 
+  /// Optional builder for decorating the suggestions dropdown box.
+  ///
+  /// If null, a default [Material] container with rounded corners and elevation is used.
+  final SuggestionsDecorationBuilder? decorationBuilder;
+
   /// Custom input decoration for the search text field.
   ///
   /// If provided, it will be merged with the default suffix icon (clear button)
@@ -165,6 +151,7 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
     super.key,
     required this.initialPage,
     this.builder,
+    this.decorationBuilder,
     this.onSelected,
     required this.itemBuilder,
     this.separatorBuilder,
@@ -184,7 +171,7 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
     this.autoFlipDirection = true,
     this.hideOnUnfocus = true,
     this.hideOnSelect = true,
-    this.clearOnClose = false,
+    this.clearOnSelect = true,
     this.autoFlipMinHeight = 64.0,
     this.dropdownConstraints = const BoxConstraints(),
     this.constrainWidth = true,
@@ -283,7 +270,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       _lastText = controller.text;
       controller.addListener(_onControllerTextChanged);
     }
-    
+
     if (oldWidget.focusNode != widget.focusNode) {
       focusNode.removeListener(_onFocusChanged);
       if (oldWidget.focusNode == null) {
@@ -337,9 +324,6 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
     if (mounted) {
       if (_overlayController.isShowing) {
         _overlayController.hide();
-      }
-      if (widget.clearOnClose && !focusNode.hasFocus) {
-        controller.clear();
       }
       setState(() {
         _results = [];
@@ -524,6 +508,9 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
   }
 
   void _onItemSelected(T item) {
+    if (widget.clearOnSelect) {
+      controller.clear();
+    }
     if (widget.hideOnSelect) {
       focusNode.unfocus();
       _hideOverlay();
@@ -668,7 +655,11 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
           children: [
             Icon(icon, color: color, size: 32),
             const SizedBox(height: 8),
-            Text(message, style: TextStyle(color: color, fontSize: 13)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: color, fontSize: 13),
+            ),
           ],
         ),
       ),
@@ -754,9 +745,9 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       targetX = pos.dx;
 
       final mq = MediaQuery.of(overlayContext);
-      final sBox =
-          Scrollable.maybeOf(overlayContext)?.context.findRenderObject()
-              as RenderBox?;
+      final sBox = Scrollable.maybeOf(overlayContext)
+          ?.context
+          .findRenderObject() as RenderBox?;
       final (sTop, sBottom) = (sBox != null && sBox.hasSize)
           ? (
               sBox.localToGlobal(Offset.zero).dy,
@@ -772,14 +763,12 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
 
       final preferredUp = _direction.value == VerticalDirection.up;
       if (preferredUp) {
-        final shouldFlip =
-            widget.autoFlipDirection &&
+        final shouldFlip = widget.autoFlipDirection &&
             spaceAbove < widget.autoFlipMinHeight + verticalGap &&
             spaceBelow > spaceAbove;
         showAbove = !shouldFlip;
       } else {
-        final shouldFlip =
-            widget.autoFlipDirection &&
+        final shouldFlip = widget.autoFlipDirection &&
             spaceBelow < widget.autoFlipMinHeight + verticalGap &&
             spaceAbove > spaceBelow;
         showAbove = shouldFlip;
@@ -789,9 +778,8 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
         0.0,
         (showAbove ? spaceAbove : spaceBelow) - verticalGap,
       );
-      maxHeight = maxHeight.isFinite
-          ? math.min(maxHeight, available)
-          : available;
+      maxHeight =
+          maxHeight.isFinite ? math.min(maxHeight, available) : available;
     }
 
     final screenWidth = MediaQuery.of(overlayContext).size.width;
@@ -837,12 +825,10 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
             return CompositedTransformFollower(
               link: _layerLink,
               showWhenUnlinked: false,
-              targetAnchor: layout.showAbove
-                  ? Alignment.topLeft
-                  : Alignment.bottomLeft,
-              followerAnchor: layout.showAbove
-                  ? Alignment.bottomLeft
-                  : Alignment.topLeft,
+              targetAnchor:
+                  layout.showAbove ? Alignment.topLeft : Alignment.bottomLeft,
+              followerAnchor:
+                  layout.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
               offset: layout.offset,
               child: Align(
                 alignment: layout.showAbove
@@ -874,6 +860,25 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
   Widget _buildDropdownContainer({required double maxHeight}) {
     final theme = Theme.of(context);
 
+    final decorationBuilder = widget.decorationBuilder ??
+        (context, child) => Material(
+              elevation: 12,
+              color: theme.colorScheme.surface,
+              surfaceTintColor: theme.colorScheme.surfaceTint,
+              clipBehavior: Clip.hardEdge,
+              shadowColor: theme.brightness == Brightness.dark
+                  ? Colors.black54
+                  : Colors.black26,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: theme.colorScheme.outlineVariant,
+                  width: 1,
+                ),
+              ),
+              child: child,
+            );
+
     return MouseRegion(
       onEnter: (_) => _isMouseOverDropdown = true,
       onExit: (_) {
@@ -888,19 +893,9 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       },
       child: Listener(
         onPointerSignal: _handlePointerSignal,
-        child: Material(
-          elevation: 12,
-          color: theme.colorScheme.surface,
-          surfaceTintColor: theme.colorScheme.surfaceTint,
-          clipBehavior: Clip.hardEdge,
-          shadowColor: theme.brightness == Brightness.dark
-              ? Colors.black54
-              : Colors.black26,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.colorScheme.outlineVariant, width: 1),
-          ),
-          child: ConstrainedBox(
+        child: decorationBuilder(
+          context,
+          ConstrainedBox(
             constraints: widget.dropdownConstraints.copyWith(
               maxHeight: maxHeight,
             ),
@@ -921,8 +916,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: controller,
       builder: (context, value, _) {
-        final decoration =
-            widget.inputDecoration ??
+        final decoration = widget.inputDecoration ??
             InputDecoration(
               isDense: true,
               filled: true,
@@ -945,16 +939,16 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
             hintText: decoration.hintText ?? widget.hintText,
             suffixIcon: value.text.isNotEmpty
                 ? (decoration.suffixIcon ??
-                      IconButton(
-                        icon: Icon(
-                          Icons.close,
-                          color: colorScheme.onSurfaceVariant,
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          controller.clear();
-                        },
-                      ))
+                    IconButton(
+                      icon: Icon(
+                        Icons.close,
+                        color: colorScheme.onSurfaceVariant,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        controller.clear();
+                      },
+                    ))
                 : decoration.suffixIcon,
           ),
         );

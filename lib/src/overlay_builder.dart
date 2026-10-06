@@ -35,10 +35,7 @@ class _OverlayBuilderState extends State<_OverlayBuilder> {
       controller: overlayController,
       overlayChildBuilder: (_) {
         final renderBox = context.findRenderObject() as RenderBox;
-        return InheritedTheme.capture(
-          from: context,
-          to: null,
-        ).wrap(widget.overlay(renderBox.size, hideOverlay));
+        return widget.overlay(renderBox.size, hideOverlay);
       },
       child: widget.child(showOverlay),
     );

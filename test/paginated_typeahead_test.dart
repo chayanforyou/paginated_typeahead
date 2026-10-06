@@ -562,5 +562,71 @@ void main() {
       expect(find.text('Custom 1'), findsOneWidget);
       expect(find.text('Custom 2'), findsOneWidget);
     });
+
+    testWidgets('PaginatedTypeAhead decorationBuilder wraps dropdown box',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PaginatedTypeAhead<String>(
+              initialPage: 0,
+              decorationBuilder: (context, child) => Container(
+                key: const ValueKey('custom_dropdown_container'),
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: child,
+              ),
+              suggestionsCallback: (query, page) {
+                return (['Decorated 1', 'Decorated 2'], false);
+              },
+              itemBuilder: (item) => Text(item),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(TextFormField));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('custom_dropdown_container')),
+        findsOneWidget,
+      );
+      expect(find.text('Decorated 1'), findsOneWidget);
+      expect(find.text('Decorated 2'), findsOneWidget);
+    });
+
+    testWidgets('PaginatedTypeAhead clearOnSelect clears search text on item selection',
+        (tester) async {
+      final controller = TextEditingController(text: 'Item');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PaginatedTypeAhead<String>(
+              initialPage: 0,
+              controller: controller,
+              clearOnSelect: true,
+              suggestionsCallback: (query, page) {
+                return (['Item A', 'Item B'], false);
+              },
+              itemBuilder: (item) => Text(item),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(TextFormField));
+      await tester.pumpAndSettle();
+
+      expect(controller.text, 'Item');
+
+      await tester.tap(find.text('Item A'));
+      await tester.pumpAndSettle();
+
+      expect(controller.text, isEmpty);
+    });
   });
 }

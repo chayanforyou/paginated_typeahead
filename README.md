@@ -5,7 +5,7 @@ A TypeAhead (autocomplete) widget for Flutter with built-in infinite scroll pagi
 [![Pub Version](https://img.shields.io/pub/v/paginated_typeahead)](https://pub.dev/packages/paginated_typeahead)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-<img src="paginated_typeahead.gif" width="360" height="auto" alt="Paginated TypeAhead Demo" />
+<img src="paginated_typeahead.gif?raw=true" width="360" height="auto" alt="Paginated TypeAhead Demo" />
 
 ## Features
 
@@ -31,7 +31,7 @@ Add `paginated_typeahead` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  paginated_typeahead: ^1.0.0
+  paginated_typeahead: ^1.1.0
 ```
 
 Or install it via terminal:
@@ -206,15 +206,16 @@ PaginatedTypeAhead<User>(
 | Property | Type | Description | Default |
 | :--- | :--- | :--- | :--- |
 | `initialPage` | `int` | The starting page number passed to `suggestionsCallback`. | **Required** |
-| `suggestionsCallback` | `AutocompleteSuggestionsCallback<T>` | Fetches suggestions for `(query, page)`. Returns `(List<T>? items, bool hasMore)`. | **Required** |
-| `itemBuilder` | `AutocompleteItemBuilder<T>` | Builds the widget for each suggestion item. | **Required** |
-| `onSelected` | `ValueChanged<T>?` | Called when a suggestion item is selected. | `null` |
+| `suggestionsCallback` | `PaginatedSuggestionsCallback<T>` | Fetches suggestions for `(query, page)`. Returns `(List<T>? items, bool hasMore)`. | **Required** |
+| `itemBuilder` | `SuggestionsItemBuilder<T>` | Builds the widget for each suggestion item. | **Required** |
+| `onSelected` | `SuggestionSelectionCallback<T>?` | Called when a suggestion item is selected. | `null` |
 | `builder` | `SuggestionsFieldBuilder?` | Custom builder for the search text field `(context, controller, focusNode)`. | `null` |
+| `decorationBuilder` | `SuggestionsDecorationBuilder?` | Custom builder for the dropdown box decoration `(context, child)`. | Default Material card |
 | `separatorBuilder` | `IndexedWidgetBuilder?` | Builds a separator between suggestion items. | `null` |
 | `loadingBuilder` | `WidgetBuilder?` | Custom builder shown while initial suggestions are loading. | Built-in spinner |
 | `loadMoreLoadingBuilder` | `WidgetBuilder?` | Custom builder shown at bottom while loading the next page. | Built-in spinner |
 | `emptyBuilder` | `WidgetBuilder?` | Custom builder shown when no items match. | Built-in message |
-| `errorBuilder` | `SuggestionErrorBuilder?` | Custom builder shown when initial fetch fails `(context, error)`. | Built-in message |
+| `errorBuilder` | `SuggestionsErrorBuilder?` | Custom builder shown when initial fetch fails `(context, error)`. | Built-in message |
 | `loadMoreErrorBuilder` | `LoadMoreErrorBuilder?` | Custom builder shown when next page fetch fails `(context, retry)`. | Built-in retry button |
 | `controller` | `TextEditingController?` | Controller for the search field text. | Auto-managed |
 | `focusNode` | `FocusNode?` | Focus node for the search field. | Auto-managed |
@@ -227,7 +228,7 @@ PaginatedTypeAhead<User>(
 | `autoFlipMinHeight` | `double` | Minimum vertical height below field before flipping upwards. | `64.0` |
 | `hideOnUnfocus` | `bool` | Whether dropdown closes when the text field loses focus. | `true` |
 | `hideOnSelect` | `bool` | Whether dropdown closes when an item is selected. | `true` |
-| `clearOnClose` | `bool` | Whether to clear the text query and results when dropdown closes. | `false` |
+| `clearOnSelect` | `bool` | Whether to clear the search text field when an item is selected. | `false` |
 | `constrainWidth` | `bool` | Whether the dropdown width matches the text field width. | `true` |
 | `dropdownConstraints` | `BoxConstraints` | Additional size constraints for the suggestions dropdown overlay. | `BoxConstraints()` |
 | `offset` | `Offset?` | Offset applied to dropdown overlay position. | `null` |
