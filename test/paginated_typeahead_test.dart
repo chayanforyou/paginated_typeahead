@@ -128,7 +128,8 @@ void main() {
       expect(find.text('Item: Doctor Who'), findsNothing);
     });
 
-    testWidgets('pointer scroll over dropdown does not hide overlay and triggers pagination',
+    testWidgets(
+        'pointer scroll over dropdown does not hide overlay and triggers pagination',
         (WidgetTester tester) async {
       int pageLoaded = 0;
 
@@ -137,7 +138,8 @@ void main() {
           home: Scaffold(
             body: PaginatedTypeAhead<String>(
               initialPage: 0,
-              itemBuilder: (value) => SizedBox(height: 50, child: Text('Item: $value')),
+              itemBuilder: (value) =>
+                  SizedBox(height: 50, child: Text('Item: $value')),
               suggestionsCallback: (query, page) {
                 pageLoaded = page;
                 if (page == 0) {
@@ -175,7 +177,8 @@ void main() {
           home: Scaffold(
             body: PaginatedTypeAhead<String>(
               initialPage: 0,
-              itemBuilder: (value) => SizedBox(height: 50, child: Text('Item: $value')),
+              itemBuilder: (value) =>
+                  SizedBox(height: 50, child: Text('Item: $value')),
               suggestionsCallback: (query, page) {
                 pageLoaded = page;
                 if (page == 0) {
@@ -317,7 +320,8 @@ void main() {
       expect(find.text('Item2'), findsOneWidget);
     });
 
-    testWidgets('flips above when spaceBelow crosses autoFlipMinHeight and autoFlipDirection is true',
+    testWidgets(
+        'flips above when spaceBelow crosses autoFlipMinHeight and autoFlipDirection is true',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -354,7 +358,8 @@ void main() {
 
     testWidgets('reflects direction change immediately while dropdown is open',
         (WidgetTester tester) async {
-      final directionNotifier = ValueNotifier<VerticalDirection>(VerticalDirection.down);
+      final directionNotifier =
+          ValueNotifier<VerticalDirection>(VerticalDirection.down);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -399,7 +404,8 @@ void main() {
       expect(itemRect.bottom, lessThan(fieldRect.top));
     });
 
-    testWidgets('reflects autoFlipDirection change immediately while dropdown is open',
+    testWidgets(
+        'reflects autoFlipDirection change immediately while dropdown is open',
         (WidgetTester tester) async {
       final autoFlipNotifier = ValueNotifier<bool>(false);
 
@@ -449,7 +455,8 @@ void main() {
       expect(itemRect.bottom, lessThan(fieldRect.top));
     });
 
-    testWidgets('Direction change from down to up in Column updates immediately',
+    testWidgets(
+        'Direction change from down to up in Column updates immediately',
         (WidgetTester tester) async {
       final directionNotifier =
           ValueNotifier<VerticalDirection>(VerticalDirection.down);
@@ -502,7 +509,8 @@ void main() {
       expect(itemRect.bottom, lessThan(fieldRect.top));
     });
 
-    testWidgets('PaginatedTypeAhead handles null items in suggestionsCallback gracefully',
+    testWidgets(
+        'PaginatedTypeAhead handles null items in suggestionsCallback gracefully',
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -598,7 +606,8 @@ void main() {
       expect(find.text('Decorated 2'), findsOneWidget);
     });
 
-    testWidgets('PaginatedTypeAhead clearOnSelect clears search text on item selection',
+    testWidgets(
+        'PaginatedTypeAhead clearOnSelect clears search text on item selection',
         (tester) async {
       final controller = TextEditingController(text: 'Item');
 

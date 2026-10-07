@@ -85,6 +85,11 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
   /// Whether the dropdown overlay should be hidden when an item is selected.
   final bool hideOnSelect;
 
+  /// Whether the dropdown overlay should be hidden when there are no suggestions.
+  ///
+  /// Defaults to false.
+  final bool hideOnEmpty;
+
   /// Whether to clear the search text field when an item is selected.
   ///
   /// Defaults to false.
@@ -165,14 +170,15 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
     this.focusNode,
     this.suggestionsController,
     this.hintText = 'Search...',
-    this.debounceDuration = const Duration(milliseconds: 300),
+    this.debounceDuration = const Duration(milliseconds: 600),
     this.minCharsForSuggestions = 0,
     this.direction = VerticalDirection.down,
     this.autoFlipDirection = true,
     this.hideOnUnfocus = true,
     this.hideOnSelect = true,
+    this.hideOnEmpty = false,
     this.clearOnSelect = true,
-    this.autoFlipMinHeight = 64.0,
+    this.autoFlipMinHeight = 84.0,
     this.dropdownConstraints = const BoxConstraints(),
     this.constrainWidth = true,
     this.offset,
@@ -458,8 +464,14 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
         widget.initialPage,
       );
       if (mounted && _currentQuery == query) {
+        final resultList = items ?? [];
+        if (widget.hideOnEmpty && resultList.isEmpty) {
+          if (_overlayController.isShowing) {
+            _overlayController.hide();
+          }
+        }
         setState(() {
-          _results = items ?? [];
+          _results = resultList;
           _hasMore = hasMore;
           _isLoading = false;
         });
@@ -536,9 +548,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       return Padding(
         padding: const EdgeInsets.all(24),
         child: Center(
-          child: CircularProgressIndicator(
-            color: colorScheme.primary,
-          ),
+          child: CircularProgressIndicator(color: colorScheme.primary),
         ),
       );
     }
@@ -556,6 +566,9 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
     }
 
     if (_results.isEmpty) {
+      if (widget.hideOnEmpty) {
+        return const SizedBox.shrink();
+      }
       if (widget.emptyBuilder != null) {
         return widget.emptyBuilder!(context);
       }
@@ -674,7 +687,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       return InkWell(
         onTap: _loadMore,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -699,7 +712,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
     }
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       child: Center(
         child: SizedBox(
           width: 24,
@@ -734,18 +747,15 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       targetX = pos.dx;
 
       final mq = MediaQuery.of(overlayContext);
-      final sBox = Scrollable.maybeOf(overlayContext)
-          ?.context
-          .findRenderObject() as RenderBox?;
-      final (sTop, sBottom) = (sBox != null && sBox.hasSize)
-          ? (
-              sBox.localToGlobal(Offset.zero).dy,
-              sBox.localToGlobal(Offset.zero).dy + sBox.size.height,
-            )
-          : (
-              mq.padding.top,
-              mq.size.height - keyboardHeight - mq.padding.bottom,
-            );
+      final sTop = mq.padding.top;
+      final effectiveKeyboardHeight = math.max(
+        keyboardHeight,
+        mq.viewInsets.bottom,
+      );
+      final bottomInset = effectiveKeyboardHeight > 0
+          ? effectiveKeyboardHeight
+          : mq.padding.bottom;
+      final sBottom = mq.size.height - bottomInset;
 
       final spaceBelow = math.max(0.0, sBottom - (pos.dy + box.size.height));
       final spaceAbove = math.max(0.0, pos.dy - sTop);
@@ -825,14 +835,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
                     : AlignmentDirectional.topStart,
                 child: SizedBox(
                   width: layout.width,
-                  child: SafeArea(
-                    top: layout.showAbove,
-                    bottom: !layout.showAbove,
-                    left: false,
-                    right: false,
-                    minimum: EdgeInsets.zero,
-                    child: _buildDropdownContainer(maxHeight: layout.maxHeight),
-                  ),
+                  child: _buildDropdownContainer(maxHeight: layout.maxHeight),
                 ),
               ),
             );
@@ -847,8 +850,16 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
   }
 
   Widget _buildDropdownContainer({required double maxHeight}) {
+    if (widget.hideOnEmpty &&
+        _results.isEmpty &&
+        !_isLoading &&
+        _error == null) {
+      return const SizedBox.shrink();
+    }
+
     final decorationBuilder = widget.decorationBuilder ??
         (context, child) => Card(
+              clipBehavior: Clip.hardEdge,
               margin: EdgeInsets.zero,
               child: child,
             );
