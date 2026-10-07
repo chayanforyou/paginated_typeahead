@@ -138,7 +138,7 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
 
   /// Optional builder for decorating the suggestions dropdown box.
   ///
-  /// If null, a default [Material] container with rounded corners and elevation is used.
+  /// If null, a default [Card] container with theme elevation and shape is used.
   final SuggestionsDecorationBuilder? decorationBuilder;
 
   /// Custom input decoration for the search text field.
@@ -536,13 +536,8 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       return Padding(
         padding: const EdgeInsets.all(24),
         child: Center(
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: colorScheme.primary,
-            ),
+          child: CircularProgressIndicator(
+            color: colorScheme.primary,
           ),
         ),
       );
@@ -554,8 +549,9 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       }
       return _buildStatusMessage(
         icon: Icons.error_outline_rounded,
-        color: colorScheme.error,
-        message: _error.toString(),
+        color: colorScheme.onSurfaceVariant,
+        message: 'The application has encountered an unknown error.\n'
+            'Please try again later.',
       );
     }
 
@@ -566,7 +562,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       return _buildStatusMessage(
         icon: Icons.search_off_rounded,
         color: colorScheme.onSurfaceVariant,
-        message: 'No items found',
+        message: 'No data available',
       );
     }
 
@@ -653,12 +649,12 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 32),
+            Icon(icon, color: color, size: 46),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: color, fontSize: 13),
+              style: TextStyle(color: color, fontSize: 14),
             ),
           ],
         ),
@@ -674,6 +670,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       if (widget.loadMoreErrorBuilder != null) {
         return widget.loadMoreErrorBuilder!(context, _loadMore);
       }
+
       return InkWell(
         onTap: _loadMore,
         child: Padding(
@@ -684,7 +681,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
               Icon(Icons.refresh_rounded, color: textColor, size: 16),
               const SizedBox(width: 8),
               Text(
-                'Something went wrong. Tap to try again.',
+                'Retry loading more',
                 style: TextStyle(color: textColor, fontSize: 12),
               ),
             ],
@@ -703,23 +700,15 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
 
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: theme.colorScheme.primary,
-            ),
+      child: Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            color: theme.colorScheme.primary,
           ),
-          const SizedBox(width: 10),
-          Text(
-            'Loading more...',
-            style: TextStyle(color: textColor, fontSize: 12),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -858,24 +847,9 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
   }
 
   Widget _buildDropdownContainer({required double maxHeight}) {
-    final theme = Theme.of(context);
-
     final decorationBuilder = widget.decorationBuilder ??
-        (context, child) => Material(
-              elevation: 12,
-              color: theme.colorScheme.surface,
-              surfaceTintColor: theme.colorScheme.surfaceTint,
-              clipBehavior: Clip.hardEdge,
-              shadowColor: theme.brightness == Brightness.dark
-                  ? Colors.black54
-                  : Colors.black26,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: theme.colorScheme.outlineVariant,
-                  width: 1,
-                ),
-              ),
+        (context, child) => Card(
+              margin: EdgeInsets.zero,
               child: child,
             );
 

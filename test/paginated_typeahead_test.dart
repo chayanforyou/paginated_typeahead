@@ -628,5 +628,54 @@ void main() {
 
       expect(controller.text, isEmpty);
     });
+
+    testWidgets(
+        'PaginatedTypeAhead default dropdown uses theme Card elevation and shape',
+        (tester) async {
+      const customShape = RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(24)),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(
+            cardTheme: const CardThemeData(
+              elevation: 8,
+              shape: customShape,
+            ),
+          ),
+          home: Scaffold(
+            body: PaginatedTypeAhead<String>(
+              initialPage: 0,
+              suggestionsCallback: (query, page) {
+                return (['Themed Card Item'], false);
+              },
+              itemBuilder: (item) => Text(item),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(TextFormField));
+      await tester.pumpAndSettle();
+
+      final cardFinder = find.descendant(
+        of: find.byType(OverlayPortal),
+        matching: find.byType(Card),
+      );
+      expect(cardFinder, findsOneWidget);
+
+      final card = tester.widget<Card>(cardFinder);
+      expect(card.margin, EdgeInsets.zero);
+      expect(card.clipBehavior, Clip.hardEdge);
+
+      final materialFinder = find.descendant(
+        of: cardFinder,
+        matching: find.byType(Material),
+      );
+      final material = tester.widget<Material>(materialFinder);
+      expect(material.elevation, 8);
+      expect(material.shape, customShape);
+    });
   });
 }

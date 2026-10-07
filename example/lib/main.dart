@@ -82,13 +82,18 @@ class _ExampleTypeAheadState extends State<ExampleTypeAhead> {
           child: Center(child: CircularProgressIndicator()),
         ),
         loadMoreLoadingBuilder: (context) => const Padding(
-          padding: EdgeInsets.all(12),
-          child: Center(
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
+          padding: EdgeInsets.all(16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 10),
+              Text('Loading more...'),
+            ],
           ),
         ),
         emptyBuilder: (context) => const Padding(
@@ -122,7 +127,7 @@ class _ExampleTypeAheadState extends State<ExampleTypeAhead> {
             child: TextButton.icon(
               onPressed: retry,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Retry loading more'),
+              label: const Text('Tap to try again'),
             ),
           ),
         ),
