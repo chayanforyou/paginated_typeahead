@@ -5,8 +5,8 @@ import 'package:flutter/widgets.dart';
 /// Called to retrieve paginated suggestions for [query] and [page].
 ///
 /// Returns a record of `(List<T>? items, bool hasMore)`.
-typedef PaginatedSuggestionsCallback<T> = FutureOr<(List<T>? items, bool hasMore)>
-    Function(String query, int page);
+typedef PaginatedSuggestionsCallback<T>
+    = FutureOr<(List<T>? items, bool hasMore)> Function(String query, int page);
 
 /// Builds a widget for a suggestion in the suggestions box.
 typedef SuggestionsItemBuilder<T> = Widget Function(T value);

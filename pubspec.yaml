@@ -1,5 +1,5 @@
 name: paginated_typeahead
-version: 1.3.0
+version: 2.0.0
 description: A customizable typeahead (autocomplete) text field for Flutter with built-in pagination, infinite scrolling, and debouncing.
 homepage: https://github.com/chayanforyou/paginated_typeahead
 platforms:

@@ -21,7 +21,6 @@ A TypeAhead (autocomplete) widget for Flutter with built-in infinite scroll pagi
 - **Smart Auto-Flipping**: Automatically switches dropdown direction (`down` / `up`) when space below is constrained or keyboard appears.
 - **Debounce & Threshold**: Configurable debounce duration and minimum characters threshold.
 - **Programmatic Controller**: Open, close, toggle, or select items programmatically via `SuggestionsController`.
-- **Form Support**: Seamlessly integrates with Flutter forms (`validator`, `autovalidateMode`, `inputFormatters`).
 
 ---
 
@@ -31,7 +30,7 @@ Add `paginated_typeahead` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  paginated_typeahead: ^1.1.0
+  paginated_typeahead: ^2.0.0
 ```
 
 Or install it via terminal:
@@ -220,7 +219,6 @@ PaginatedTypeAhead<User>(
 | `controller` | `TextEditingController?` | Controller for the search field text. | Auto-managed |
 | `focusNode` | `FocusNode?` | Focus node for the search field. | Auto-managed |
 | `suggestionsController` | `SuggestionsController<T>?` | Controller to programmatically control the dropdown. | `null` |
-| `hintText` | `String` | Placeholder text for default search field. | `'Search...'` |
 | `debounceDuration` | `Duration` | Delay to wait after user stops typing before triggering search. | `300ms` |
 | `minCharsForSuggestions` | `int` | Minimum characters required to trigger suggestions. | `0` |
 | `direction` | `VerticalDirection` | Preferred vertical direction (`down` or `up`). | `VerticalDirection.down` |
@@ -228,15 +226,10 @@ PaginatedTypeAhead<User>(
 | `autoFlipMinHeight` | `double` | Minimum vertical height below field before flipping upwards. | `64.0` |
 | `hideOnUnfocus` | `bool` | Whether dropdown closes when the text field loses focus. | `true` |
 | `hideOnSelect` | `bool` | Whether dropdown closes when an item is selected. | `true` |
-| `clearOnSelect` | `bool` | Whether to clear the search text field when an item is selected. | `false` |
+| `clearOnSelect` | `bool` | Whether to clear the search text field when an item is selected. | `true` |
 | `constrainWidth` | `bool` | Whether the dropdown width matches the text field width. | `true` |
 | `dropdownConstraints` | `BoxConstraints` | Additional size constraints for the suggestions dropdown overlay. | `BoxConstraints()` |
 | `offset` | `Offset?` | Offset applied to dropdown overlay position. | `null` |
-| `inputDecoration` | `InputDecoration?` | Decoration for the default text field. | Styled default |
-| `validator` | `FormFieldValidator<String>?` | Form validation logic. | `null` |
-| `autovalidateMode` | `AutovalidateMode?` | Auto-validation mode for form validation. | `null` |
-| `keyboardType` | `TextInputType?` | Keyboard type for the text field. | `null` |
-| `inputFormatters` | `List<TextInputFormatter>?` | Formatters applied to the text field input. | `null` |
 
 ---
 

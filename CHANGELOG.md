@@ -1,3 +1,18 @@
+## 2.0.0
+
+**Breaking changes**
+
+* Removed `inputDecoration`, `hintText`, `validator`, `autovalidateMode`, `keyboardType` and `inputFormatters`. Use `builder` to provide a custom text field instead.
+* Changed the default `debounceDuration` from `600ms` to `300ms`.
+
+**Fixes**
+
+* Fixed load-more results from a previous query being appended to a new query's results.
+* Fixed the dropdown staying open after unfocus when an item was selected with the mouse.
+* Fixed `SuggestionsController.open()` showing an endless loading indicator after an in-flight search was hidden.
+* Fixed `SuggestionsController.open()` searching with untrimmed text.
+* Fixed the dropdown position and height not updating when the text field scrolls.
+
 ## 1.3.0
 
 * Added `hideOnEmpty` property to automatically hide the dropdown when results are empty.

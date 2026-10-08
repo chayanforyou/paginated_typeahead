@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -236,14 +238,14 @@ void main() {
 
       expect(find.text('DarkItem'), findsOneWidget);
 
-      // Verify the dropdown Material color matches theme surface color (not hardcoded white)
-      final materialFinder = find.descendant(
+      // Verify the dropdown paints the theme's card color (not hardcoded white)
+      final shapeFinder = find.descendant(
         of: find.byType(OverlayPortal),
-        matching: find.byType(Material),
+        matching: find.byType(PhysicalShape),
       );
-      final materials = tester.widgetList<Material>(materialFinder);
+      final shapes = tester.widgetList<PhysicalShape>(shapeFinder);
       expect(
-        materials.any((m) => m.color == darkTheme.colorScheme.surface),
+        shapes.any((s) => s.color == darkTheme.cardColor),
         isTrue,
       );
     });
@@ -685,6 +687,129 @@ void main() {
       final material = tester.widget<Material>(materialFinder);
       expect(material.elevation, 8);
       expect(material.shape, customShape);
+    });
+    testWidgets('discards load-more results from a previous query',
+        (WidgetTester tester) async {
+      final staleLoadMore = Completer<(List<String>?, bool)>();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PaginatedTypeAhead<String>(
+              initialPage: 0,
+              debounceDuration: Duration.zero,
+              dropdownConstraints: const BoxConstraints(maxHeight: 200),
+              itemBuilder: (value) => SizedBox(height: 50, child: Text(value)),
+              suggestionsCallback: (query, page) {
+                if (query == 'foo') {
+                  if (page == 0) {
+                    return (List.generate(20, (i) => 'foo$i'), true);
+                  }
+                  return staleLoadMore.future;
+                }
+                if (query == 'bar') return (['bar0'], false);
+                return (<String>[], false);
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextFormField), 'foo');
+      await tester.pumpAndSettle();
+      expect(find.text('foo0'), findsOneWidget);
+
+      // Scroll to the bottom to start loading page 1 of 'foo'.
+      await tester.drag(find.text('foo0'), const Offset(0, -2000));
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextFormField), 'bar');
+      await tester.pumpAndSettle();
+      expect(find.text('bar0'), findsOneWidget);
+
+      staleLoadMore.complete((['stale'], true));
+      await tester.pumpAndSettle();
+
+      expect(find.text('stale'), findsNothing);
+      expect(find.text('bar0'), findsOneWidget);
+    });
+
+    testWidgets('hides on unfocus after an item was selected with the mouse',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PaginatedTypeAhead<String>(
+              initialPage: 0,
+              debounceDuration: Duration.zero,
+              itemBuilder: (value) => ListTile(title: Text(value)),
+              suggestionsCallback: (query, page) => (['Apple'], false),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(TextFormField));
+      await tester.pumpAndSettle();
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(find.text('Apple')));
+      await tester.pump();
+      await mouse.down(tester.getCenter(find.text('Apple')));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(find.text('Apple'), findsNothing);
+
+      // Move the mouse away while no dropdown exists, so no onExit fires.
+      await mouse.moveTo(const Offset(790, 590));
+      await tester.pump();
+
+      await tester.tap(find.byType(TextFormField));
+      await tester.pumpAndSettle();
+      expect(find.text('Apple'), findsOneWidget);
+
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle(const Duration(milliseconds: 300));
+      expect(find.text('Apple'), findsNothing);
+    });
+
+    testWidgets('open() searches again after an in-flight search was hidden',
+        (WidgetTester tester) async {
+      final firstSearch = Completer<(List<String>?, bool)>();
+      final suggestionsController = SuggestionsController<String>();
+      var calls = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PaginatedTypeAhead<String>(
+              initialPage: 0,
+              suggestionsController: suggestionsController,
+              itemBuilder: (value) => Text(value),
+              suggestionsCallback: (query, page) {
+                calls++;
+                if (calls == 1) return firstSearch.future;
+                return (['Fresh'], false);
+              },
+            ),
+          ),
+        ),
+      );
+
+      // Focus starts a search, then focus is lost before it completes.
+      await tester.tap(find.byType(TextFormField));
+      await tester.pump();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump(const Duration(milliseconds: 300));
+      firstSearch.complete((['Stale'], false));
+      await tester.pumpAndSettle();
+
+      suggestionsController.open();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('Fresh'), findsOneWidget);
+      expect(find.text('Stale'), findsNothing);
     });
   });
 }

@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'dart:ui';
 
@@ -57,9 +56,6 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
   /// The initial page number to load when fetching suggestions.
   final int initialPage;
 
-  /// Hint text for the search field.
-  final String hintText;
-
   /// Duration to wait before trigger search callback after user stops typing.
   final Duration debounceDuration;
 
@@ -92,8 +88,13 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
 
   /// Whether to clear the search text field when an item is selected.
   ///
-  /// Defaults to false.
+  /// Defaults to true.
   final bool clearOnSelect;
+
+  /// Whether to clear the search text field when it loses focus.
+  ///
+  /// Defaults to false.
+  final bool clearOnUnfocus;
 
   /// The minimum vertical space required below the search field to prevent flipping directions.
   final double autoFlipMinHeight;
@@ -119,18 +120,6 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
   /// An optional controller to manually open/close/toggle the suggestions dropdown.
   final SuggestionsController<T>? suggestionsController;
 
-  /// An optional validator function for Form validation.
-  final FormFieldValidator<String>? validator;
-
-  /// The autovalidate mode for the form validation.
-  final AutovalidateMode? autovalidateMode;
-
-  /// The type of keyboard to use for editing the text.
-  final TextInputType? keyboardType;
-
-  /// Optional input formatters to apply to the search field.
-  final List<TextInputFormatter>? inputFormatters;
-
   /// Optional focus node for the search field.
   final FocusNode? focusNode;
 
@@ -145,12 +134,6 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
   ///
   /// If null, a default [Card] container with theme elevation and shape is used.
   final SuggestionsDecorationBuilder? decorationBuilder;
-
-  /// Custom input decoration for the search text field.
-  ///
-  /// If provided, it will be merged with the default suffix icon (clear button)
-  /// if the text field has text.
-  final InputDecoration? inputDecoration;
 
   const PaginatedTypeAhead({
     super.key,
@@ -169,8 +152,7 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
     this.controller,
     this.focusNode,
     this.suggestionsController,
-    this.hintText = 'Search...',
-    this.debounceDuration = const Duration(milliseconds: 600),
+    this.debounceDuration = const Duration(milliseconds: 300),
     this.minCharsForSuggestions = 0,
     this.direction = VerticalDirection.down,
     this.autoFlipDirection = true,
@@ -178,15 +160,11 @@ class PaginatedTypeAhead<T> extends StatefulWidget {
     this.hideOnSelect = true,
     this.hideOnEmpty = false,
     this.clearOnSelect = true,
+    this.clearOnUnfocus = false,
     this.autoFlipMinHeight = 84.0,
     this.dropdownConstraints = const BoxConstraints(),
     this.constrainWidth = true,
     this.offset,
-    this.validator,
-    this.autovalidateMode,
-    this.keyboardType,
-    this.inputFormatters,
-    this.inputDecoration,
   });
 
   @override
@@ -199,7 +177,11 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
   final OverlayPortalController _overlayController = OverlayPortalController();
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<double> _keyboardHeight = ValueNotifier(0.0);
+  final ValueNotifier<int> _anchorMoved = ValueNotifier(0);
   late final ValueNotifier<VerticalDirection> _direction;
+
+  /// Watched to recompute dropdown size/direction on scroll.
+  ScrollPosition? _ancestorScrollPosition;
 
   Timer? _debounceTimer;
 
@@ -214,12 +196,19 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
   Object? _error;
   String _lastText = '';
 
+  /// Incremented whenever the current search session is replaced or reset,
+  /// so responses from earlier requests can be discarded.
+  int _searchGeneration = 0;
+
   late TextEditingController controller;
   late FocusNode focusNode;
 
   void _onControllerTextChanged() {
     if (controller.text != _lastText) {
       _lastText = controller.text;
+      // Ignore programmatic changes (e.g. prefilled values) while unfocused;
+      // _onFocusChanged searches when the field gains focus.
+      if (!focusNode.hasFocus) return;
       _onTextChanged(controller.text);
     }
   }
@@ -244,6 +233,20 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _updateKeyboardHeight();
+
+    final position = Scrollable.maybeOf(context)?.position;
+    if (position != _ancestorScrollPosition) {
+      _ancestorScrollPosition?.removeListener(_onAncestorScroll);
+      _ancestorScrollPosition = position?..addListener(_onAncestorScroll);
+    }
+  }
+
+  void _onAncestorScroll() {
+    if (!_overlayController.isShowing) return;
+    // Wait for layout so the field's new global position is available.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _anchorMoved.value++;
+    });
   }
 
   @override
@@ -308,9 +311,11 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
 
     WidgetsBinding.instance.removeObserver(this);
     widget.suggestionsController?._detach();
+    _ancestorScrollPosition?.removeListener(_onAncestorScroll);
     _debounceTimer?.cancel();
     _scrollController.dispose();
     _keyboardHeight.dispose();
+    _anchorMoved.dispose();
     _direction.dispose();
     super.dispose();
   }
@@ -327,15 +332,20 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
 
   void _hideOverlay() {
     _debounceTimer?.cancel();
+    // MouseRegion.onExit does not fire when the hovered dropdown is removed.
+    _isMouseOverDropdown = false;
     if (mounted) {
       if (_overlayController.isShowing) {
         _overlayController.hide();
       }
       setState(() {
+        _searchGeneration++;
         _results = [];
         _currentQuery = '';
         _currentPage = widget.initialPage;
         _hasMore = false;
+        _isLoading = false;
+        _isLoadingMore = false;
         _loadMoreFailed = false;
         _error = null;
       });
@@ -348,14 +358,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
 
   void _onFocusChanged() {
     if (!focusNode.hasFocus) {
-      if (widget.hideOnUnfocus) {
-        // Delay hiding to allow tap/scroll events on the overlay to fire first.
-        Future.delayed(const Duration(milliseconds: 200), () {
-          if (mounted && !focusNode.hasFocus && !_isMouseOverDropdown) {
-            _hideOverlay();
-          }
-        });
-      }
+      _scheduleUnfocusActions();
     } else {
       final query = controller.text.trim();
       if (query.length >= widget.minCharsForSuggestions) {
@@ -366,6 +369,19 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
         }
       }
     }
+  }
+
+  /// Runs [PaginatedTypeAhead.clearOnUnfocus] and
+  /// [PaginatedTypeAhead.hideOnUnfocus] after a short delay, so tap/scroll
+  /// events on the overlay fire first.
+  void _scheduleUnfocusActions() {
+    if (!widget.clearOnUnfocus && !widget.hideOnUnfocus) return;
+
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (!mounted || focusNode.hasFocus || _isMouseOverDropdown) return;
+      if (widget.clearOnUnfocus) controller.clear();
+      if (widget.hideOnUnfocus) _hideOverlay();
+    });
   }
 
   void _onScroll() {
@@ -424,13 +440,19 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
         _overlayController.hide();
       }
       setState(() {
+        _searchGeneration++;
         _results = [];
         _currentQuery = query;
+        _isLoading = false;
+        _isLoadingMore = false;
       });
       return;
     }
 
     _debounceTimer = Timer(widget.debounceDuration, () {
+      // Focus may have been lost during the debounce, e.g. onSelected set
+      // the text right after unfocus() but before focus actually updated.
+      if (!mounted || !focusNode.hasFocus) return;
       _search(query);
     });
   }
@@ -448,8 +470,10 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       return;
     }
 
+    final generation = ++_searchGeneration;
     setState(() {
       _isLoading = true;
+      _isLoadingMore = false;
       _currentQuery = query;
       _currentPage = widget.initialPage;
       _results = [];
@@ -463,7 +487,8 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
         query,
         widget.initialPage,
       );
-      if (mounted && _currentQuery == query) {
+      // Drop the response if the search was replaced or reset meanwhile.
+      if (mounted && generation == _searchGeneration) {
         final resultList = items ?? [];
         if (widget.hideOnEmpty && resultList.isEmpty) {
           if (_overlayController.isShowing) {
@@ -477,7 +502,8 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
         });
       }
     } catch (e) {
-      if (mounted && _currentQuery == query) {
+      // Drop the response if the search was replaced or reset meanwhile.
+      if (mounted && generation == _searchGeneration) {
         setState(() {
           _isLoading = false;
           _error = e;
@@ -489,6 +515,8 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
   Future<void> _loadMore() async {
     if (_isLoadingMore || !_hasMore) return;
 
+    final query = _currentQuery;
+    final generation = _searchGeneration;
     setState(() {
       _isLoadingMore = true;
       _loadMoreFailed = false;
@@ -497,10 +525,10 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
     try {
       final nextPage = _currentPage + 1;
       final (items, hasMore) = await widget.suggestionsCallback(
-        _currentQuery,
+        query,
         nextPage,
       );
-      if (mounted) {
+      if (mounted && generation == _searchGeneration) {
         setState(() {
           if (items != null) _results.addAll(items);
           _currentPage = nextPage;
@@ -510,7 +538,7 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
         });
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && generation == _searchGeneration) {
         setState(() {
           _isLoadingMore = false;
           _loadMoreFailed = true;
@@ -813,7 +841,11 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       overlayPortalController: _overlayController,
       overlay: (size, _) {
         return ListenableBuilder(
-          listenable: Listenable.merge([_keyboardHeight, _direction]),
+          listenable: Listenable.merge([
+            _keyboardHeight,
+            _direction,
+            _anchorMoved,
+          ]),
           builder: (overlayContext, _) {
             final layout = _calculateDropdownLayout(
               overlayContext: overlayContext,
@@ -857,23 +889,14 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
       return const SizedBox.shrink();
     }
 
-    final decorationBuilder = widget.decorationBuilder ??
-        (context, child) => Card(
-              clipBehavior: Clip.hardEdge,
-              margin: EdgeInsets.zero,
-              child: child,
-            );
+    final decorationBuilder = wrapperBuilder(widget.decorationBuilder);
 
     return MouseRegion(
       onEnter: (_) => _isMouseOverDropdown = true,
       onExit: (_) {
         _isMouseOverDropdown = false;
-        if (!focusNode.hasFocus && widget.hideOnUnfocus) {
-          Future.delayed(const Duration(milliseconds: 200), () {
-            if (mounted && !focusNode.hasFocus && !_isMouseOverDropdown) {
-              _hideOverlay();
-            }
-          });
+        if (!focusNode.hasFocus) {
+          _scheduleUnfocusActions();
         }
       },
       child: Listener(
@@ -891,9 +914,48 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
     );
   }
 
+  /// A wrapper around the suggestions box.
+  /// Adds a Material ancestor so Material widgets inside work on any host.
+  static SuggestionsDecorationBuilder wrapperBuilder(
+    SuggestionsDecorationBuilder? builder,
+  ) {
+    return (context, child) {
+      return Material(
+        type: MaterialType.transparency,
+        child: (builder ?? decorationBuilder)(context, child),
+      );
+    };
+  }
+
+  /// The default decoration builder used for the suggestions box.
+  static Widget decorationBuilder(BuildContext context, Widget child) {
+    return Material(
+      type: MaterialType.card,
+      elevation: 1,
+      clipBehavior: Clip.hardEdge,
+      borderRadius: BorderRadius.circular(12),
+      child: child,
+    );
+  }
+
+  /// The search field, wrapped in a Material ancestor because TextField
+  /// requires one (hosts like material_ui don't provide Flutter's Material).
   Widget _buildSearchField() {
+    return Material(
+      type: MaterialType.transparency,
+      child: _buildTextField(),
+    );
+  }
+
+  Widget _buildTextField() {
     if (widget.builder != null) {
-      return widget.builder!(context, controller, focusNode);
+      // Rebuild on text change so callers can react to ctrl.text
+      // (e.g. show a clear button) without their own listener.
+      return ValueListenableBuilder<TextEditingValue>(
+        valueListenable: controller,
+        builder: (context, _, __) =>
+            widget.builder!(context, controller, focusNode),
+      );
     }
 
     final colorScheme = Theme.of(context).colorScheme;
@@ -901,40 +963,29 @@ class _PaginatedTypeAheadState<T> extends State<PaginatedTypeAhead<T>>
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: controller,
       builder: (context, value, _) {
-        final decoration = widget.inputDecoration ??
-            InputDecoration(
-              isDense: true,
-              filled: true,
-              hintText: widget.hintText,
-              prefixIcon: Icon(
-                Icons.search,
-                color: colorScheme.onSurfaceVariant,
-                size: 22,
-              ),
-            );
-
         return TextFormField(
           controller: controller,
           focusNode: focusNode,
-          keyboardType: widget.keyboardType,
-          inputFormatters: widget.inputFormatters,
-          validator: widget.validator,
-          autovalidateMode: widget.autovalidateMode,
-          decoration: decoration.copyWith(
-            hintText: decoration.hintText ?? widget.hintText,
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: 'Search...',
+            prefixIcon: Icon(
+              Icons.search,
+              color: colorScheme.onSurfaceVariant,
+              size: 22,
+            ),
             suffixIcon: value.text.isNotEmpty
-                ? (decoration.suffixIcon ??
-                    IconButton(
-                      icon: Icon(
-                        Icons.close,
-                        color: colorScheme.onSurfaceVariant,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        controller.clear();
-                      },
-                    ))
-                : decoration.suffixIcon,
+                ? IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      color: colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      controller.clear();
+                    },
+                  )
+                : null,
           ),
         );
       },
@@ -977,9 +1028,10 @@ class SuggestionsController<T> {
   /// If there are no results yet for the current query, it will trigger a search.
   void open() {
     if (_state == null) return;
+    final query = _state!.controller.text.trim();
     final needsSearch = _state!._results.isEmpty && !_state!._isLoading;
-    if (_state!._currentQuery != _state!.controller.text || needsSearch) {
-      _state!._search(_state!.controller.text);
+    if (_state!._currentQuery != query || needsSearch) {
+      _state!._search(query);
     } else {
       _state!._showOverlay();
     }
